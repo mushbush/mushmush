@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>조합 게임</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        .app {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 드래그 가능한 헤더 */
+        .drag-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px 20px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .drag-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toggle-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .toggle-btn.active {
+            background: #fff;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* 오버레이 모드 스타일 */
+        .overlay-mode {
+            background: rgba(26, 26, 46, 0.85);
+            backdrop-filter: blur(10px);
+        }
+
+        .overlay-mode .drag-header {
+            background: rgba(102, 126, 234, 0.8);
+        }
+
+        /* 게임 영역 */
+        .game-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .list-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .list-panel h2 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #a0a0ff;
+            text-align: center;
+        }
+
+        .item-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: grab;
+            transition: all 0.2s;
+            user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .item:active {
+            cursor: grabbing;
+        }
+
+        .item.dragging {
+            opacity: 0.5;
+        }
+
+        /* 조합 영역 */
+        .combination-area {
+            background: rgba(255,255,255,0.05);
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .combination-area.drag-over {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .combination-slots {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .slot {
+            width: 120px;
+            height: 80px;
+            background: rgba(255,255,255,0.1);
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+        }
+
+        .slot.filled {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .slot.active {
+            border: 3px solid #f5576c;
+            box-shadow: 0 0 15px rgba(245, 87, 108, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 15px rgba(245, 87, 108, 0.6);
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(245, 87, 108, 0.9);
+            }
+        }
+
+        .combine-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
+        }
+
+        .combine-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+        }
+
+        .combine-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 결과 목록 */
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .result-formula {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        /* 스크롤바 스타일 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // 샘플 데이터 - 교배용 생물 (A: 베이스, B: 오버레이 무늬)
+        const initialAItems = [
+            { id: 'a1', name: '용', emoji: '🐉', color: '#9b59b6' },
+            { id: 'a2', name: '독수리', emoji: '🦅', color: '#e74c3c' },
+            { id: 'a3', name: '사자', emoji: '🦁', color: '#f39c12' },
+            { id: 'a4', name: '늑대', emoji: '🐺', color: '#34495e' },
+            { id: 'a5', name: '뱀', emoji: '🐍', color: '#27ae60' },
+        ];
+
+        const initialBItems = [
+            { id: 'b1', name: '화염 무늬', emoji: '🔥', color: '#ff6b6b' },
+            { id: 'b2', name: '물결 무늬', emoji: '💧', color: '#4ecdc4' },
+            { id: 'b3', name: '번개 무늬', emoji: '⚡', color: '#ffe66d' },
+            { id: 'b4', name: '대지 무늬', emoji: '🌍', color: '#a8dadc' },
+            { id: 'b5', name: '바람 무늬', emoji: '🌪️', color: '#e0e0e0' },
+        ];
+
+        // 추가 레이어 (돌연변이로만 등장)
+        const layerCItems = [
+            { id: 'c1', name: '박쥐날개', emoji: '🦇', layer: 'C' },
+            { id: 'c2', name: '천사날개', emoji: '😇', layer: 'C' },
+            { id: 'c3', name: '나비날개', emoji: '🦋', layer: 'C' },
+            { id: 'c4', name: '드래곤날개', emoji: '🪽', layer: 'C' },
+        ];
+
+        const layerDItems = [
+            { id: 'd1', name: '악마뿔', emoji: '😈', layer: 'D' },
+            { id: 'd2', name: '유니콘뿔', emoji: '🦄', layer: 'D' },
+            { id: 'd3', name: '사슴뿔', emoji: '🦌', layer: 'D' },
+        ];
+
+        const layerEItems = [
+            { id: 'e1', name: '왕관', emoji: '👑', layer: 'E' },
+            { id: 'e2', name: '후광', emoji: '😇', layer: 'E' },
+            { id: 'e3', name: '별', emoji: '⭐', layer: 'E' },
+        ];
+
+        function App() {
+            const [overlayMode, setOverlayMode] = useState(false);
+            const [slotA, setSlotA] = useState(null);
+            const [slotB, setSlotB] = useState(null);
+            const [slotC1, setSlotC1] = useState(null);  // 2차 교배 슬롯 1
+            const [slotC2, setSlotC2] = useState(null);  // 2차 교배 슬롯 2
+            const [results, setResults] = useState([]);
+            const [cCollection, setCCollection] = useState([]);  // 1차 교배 결과 저장소
+            const [dragOver, setDragOver] = useState(false);
+            const [dragOver2, setDragOver2] = useState(false);  // 2차 교배 영역
+            const [activeSlot, setActiveSlot] = useState(null);  // 현재 선택된 슬롯 ('A', 'B', 'C1', 'C2')
+
+            const handleItemClick = (item, type) => {
+                // 활성화된 슬롯이 있으면 해당 슬롯에 아이템 할당
+                if (activeSlot === 'A' && type === 'A') {
+                    setSlotA(item);
+                    setActiveSlot(null);
+                } else if (activeSlot === 'B' && type === 'B') {
+                    setSlotB(item);
+                    setActiveSlot(null);
+                } else if (activeSlot === 'C1' && type === 'C') {
+                    setSlotC1(item);
+                    setActiveSlot(null);
+                } else if (activeSlot === 'C2' && type === 'C') {
+                    setSlotC2(item);
+                    setActiveSlot(null);
+                }
+                // 활성화된 슬롯이 없으면 자동으로 빈 슬롯에 할당
+                else if (!activeSlot) {
+                    if (type === 'A' && !slotA) {
+                        setSlotA(item);
+                    } else if (type === 'B' && !slotB) {
+                        setSlotB(item);
+                    } else if (type === 'C') {
+                        if (!slotC1) {
+                            setSlotC1(item);
+                        } else if (!slotC2) {
+                            setSlotC2(item);
+                        }
+                    }
+                }
+            };
+
+            const handleSlotClick = (slotName) => {
+                // 슬롯 클릭 시 활성화 또는 비활성화
+                if (activeSlot === slotName) {
+                    setActiveSlot(null);  // 이미 선택된 슬롯 클릭 시 비활성화
+                } else {
+                    setActiveSlot(slotName);  // 슬롯 활성화
+                }
+            };
+
+            const handleDragStart = (e, item, type) => {
+                e.dataTransfer.setData('item', JSON.stringify({ ...item, type }));
+                e.target.classList.add('dragging');
+            };
+
+            const handleDragEnd = (e) => {
+                e.target.classList.remove('dragging');
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setDragOver(true);
+            };
+
+            const handleDragLeave = () => {
+                setDragOver(false);
+            };
+
+            const handleDrop = (e, slot) => {
+                e.preventDefault();
+                setDragOver(false);
+                setDragOver2(false);
+                
+                const data = JSON.parse(e.dataTransfer.getData('item'));
+                
+                // 1차 교배 영역
+                if (slot === 'A' && data.type === 'A') {
+                    setSlotA(data);
+                } else if (slot === 'B' && data.type === 'B') {
+                    setSlotB(data);
+                }
+                
+                // 2차 교배 영역 (C 아이템만 받음)
+                if (slot === 'C1' && data.type === 'C') {
+                    setSlotC1(data);
+                } else if (slot === 'C2' && data.type === 'C') {
+                    setSlotC2(data);
+                }
+            };
+
+            const handleCombine = () => {
+                if (!slotA || !slotB) return;
+
+                // 1차 교배 - A(베이스) + B(오버레이)
+                const layers = {
+                    A: slotA,
+                    B: slotB
+                };
+
+                const roll = Math.random();
+
+                if (roll < 0.85) {
+                    // 85% - AB만
+                    // 추가 레이어 없음
+                } else if (roll < 0.95) {
+                    // 10% - ABX (레이어 1개 추가)
+                    const layerChoice = Math.random();
+                    if (layerChoice < 0.33) {
+                        layers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                    } else if (layerChoice < 0.66) {
+                        layers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                    } else {
+                        layers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                    }
+                } else if (roll < 0.9999) {
+                    // 4.99% - ABXX (레이어 2개 추가)
+                    const availableLayers = ['C', 'D', 'E'];
+                    // Fisher-Yates shuffle for true randomness
+                    for (let i = availableLayers.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [availableLayers[i], availableLayers[j]] = [availableLayers[j], availableLayers[i]];
+                    }
+                    
+                    const layer1 = availableLayers[0];
+                    const layer2 = availableLayers[1];
+                    
+                    // 첫 번째 레이어 추가
+                    if (layer1 === 'C') {
+                        layers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                    } else if (layer1 === 'D') {
+                        layers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                    } else if (layer1 === 'E') {
+                        layers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                    }
+                    
+                    // 두 번째 레이어 추가
+                    if (layer2 === 'C') {
+                        layers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                    } else if (layer2 === 'D') {
+                        layers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                    } else if (layer2 === 'E') {
+                        layers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                    }
+                } else {
+                    // 0.01% - ABCDE (전설!)
+                    layers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                    layers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                    layers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                }
+
+                const layerKeys = Object.keys(layers).sort();
+                const layerString = layerKeys.join('');
+                
+                const newCreature = {
+                    id: `c-${Date.now()}`,
+                    type: 'C',
+                    layers: layers,
+                    layerString: layerString,
+                    baseItem: slotA,
+                    overlayItem: slotB,
+                    name: `${slotB.name} ${slotA.name}`,
+                    emoji: slotA.emoji,
+                    color: slotA.color,
+                    patternEmoji: slotB.emoji,
+                    patternColor: slotB.color,
+                    generation: 1
+                };
+
+                setCCollection([newCreature, ...cCollection]);
+                
+                setResults([
+                    {
+                        id: Date.now(),
+                        ...newCreature,
+                        formula: `${slotA.name} × ${slotB.name}`,
+                        isMutation: layerKeys.length > 2,
+                        isLegendary: layerString === 'ABCDE'
+                    },
+                    ...results
+                ]);
+
+                setSlotA(null);
+                setSlotB(null);
+            };
+
+            const handleSecondaryBreed = () => {
+                if (!slotC1 || !slotC2) return;
+
+                const parent1 = slotC1.layers || { A: slotC1.baseItem, B: slotC1.overlayItem };
+                const parent2 = slotC2.layers || { A: slotC2.baseItem, B: slotC2.overlayItem };
+
+                const newLayers = {};
+
+                // A 레이어: 부모 중 하나 (50/50)
+                newLayers.A = Math.random() < 0.5 ? parent1.A : parent2.A;
+
+                // B 레이어: 부모 중 하나 또는 5% 돌연변이
+                if (Math.random() < 0.05) {
+                    newLayers.B = initialBItems[Math.floor(Math.random() * initialBItems.length)];
+                } else {
+                    newLayers.B = Math.random() < 0.5 ? parent1.B : parent2.B;
+                }
+
+                // 확률 결정
+                const roll = Math.random();
+                
+                if (roll < 0.85) {
+                    // 85% - AB만 (레이어 탈락)
+                    // 추가 레이어 없음
+                } else if (roll < 0.95) {
+                    // 10% - ABX (레이어 1개)
+                    // 부모가 가진 레이어 풀에서 선택
+                    const parentLayers = [];
+                    if (parent1.C) parentLayers.push({key: 'C', value: parent1.C});
+                    if (parent1.D) parentLayers.push({key: 'D', value: parent1.D});
+                    if (parent1.E) parentLayers.push({key: 'E', value: parent1.E});
+                    if (parent2.C) parentLayers.push({key: 'C', value: parent2.C});
+                    if (parent2.D) parentLayers.push({key: 'D', value: parent2.D});
+                    if (parent2.E) parentLayers.push({key: 'E', value: parent2.E});
+                    
+                    if (parentLayers.length > 0) {
+                        const selected = parentLayers[Math.floor(Math.random() * parentLayers.length)];
+                        newLayers[selected.key] = selected.value;
+                    } else {
+                        // 부모에게 추가 레이어가 없으면 새로 생성
+                        const layerChoice = Math.random();
+                        if (layerChoice < 0.33) {
+                            newLayers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                        } else if (layerChoice < 0.66) {
+                            newLayers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                        } else {
+                            newLayers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                        }
+                    }
+                } else if (roll < 0.9999) {
+                    // 4.99% - ABXX (레이어 2개)
+                    const parentLayers = new Set();
+                    if (parent1.C) parentLayers.add('C');
+                    if (parent1.D) parentLayers.add('D');
+                    if (parent1.E) parentLayers.add('E');
+                    if (parent2.C) parentLayers.add('C');
+                    if (parent2.D) parentLayers.add('D');
+                    if (parent2.E) parentLayers.add('E');
+                    
+                    const availableLayers = Array.from(parentLayers);
+                    
+                    if (availableLayers.length >= 2) {
+                        // 부모 레이어에서 2개 선택 (Fisher-Yates shuffle)
+                        for (let i = availableLayers.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [availableLayers[i], availableLayers[j]] = [availableLayers[j], availableLayers[i]];
+                        }
+                        availableLayers.slice(0, 2).forEach(layer => {
+                            const fromParent = parent1[layer] || parent2[layer];
+                            newLayers[layer] = fromParent;
+                        });
+                    } else if (availableLayers.length === 1) {
+                        // 1개는 부모에서, 1개는 새로 생성
+                        const fromParent = parent1[availableLayers[0]] || parent2[availableLayers[0]];
+                        newLayers[availableLayers[0]] = fromParent;
+                        
+                        const remaining = ['C', 'D', 'E'].filter(l => l !== availableLayers[0]);
+                        const newLayer = remaining[Math.floor(Math.random() * remaining.length)];
+                        if (newLayer === 'C') {
+                            newLayers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                        } else if (newLayer === 'D') {
+                            newLayers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                        } else if (newLayer === 'E') {
+                            newLayers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                        }
+                    } else {
+                        // 부모에게 추가 레이어가 없으면 2개 새로 생성
+                        const allLayers = ['C', 'D', 'E'];
+                        // Fisher-Yates shuffle
+                        for (let i = allLayers.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [allLayers[i], allLayers[j]] = [allLayers[j], allLayers[i]];
+                        }
+                        const layer1 = allLayers[0];
+                        const layer2 = allLayers[1];
+                        
+                        if (layer1 === 'C') {
+                            newLayers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                        } else if (layer1 === 'D') {
+                            newLayers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                        } else if (layer1 === 'E') {
+                            newLayers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                        }
+                        
+                        if (layer2 === 'C') {
+                            newLayers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                        } else if (layer2 === 'D') {
+                            newLayers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                        } else if (layer2 === 'E') {
+                            newLayers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                        }
+                    }
+                } else {
+                    // 0.01% - ABCDE (극희귀!)
+                    // 부모 레이어 + 없는 것 새로 생성
+                    if (parent1.C || parent2.C) newLayers.C = parent1.C || parent2.C;
+                    if (parent1.D || parent2.D) newLayers.D = parent1.D || parent2.D;
+                    if (parent1.E || parent2.E) newLayers.E = parent1.E || parent2.E;
+                    
+                    if (!newLayers.C) newLayers.C = layerCItems[Math.floor(Math.random() * layerCItems.length)];
+                    if (!newLayers.D) newLayers.D = layerDItems[Math.floor(Math.random() * layerDItems.length)];
+                    if (!newLayers.E) newLayers.E = layerEItems[Math.floor(Math.random() * layerEItems.length)];
+                }
+
+                const layerKeys = Object.keys(newLayers).sort();
+                const layerString = layerKeys.join('');
+
+                const newCreature = {
+                    id: `c-${Date.now()}`,
+                    type: 'C',
+                    layers: newLayers,
+                    layerString: layerString,
+                    baseItem: newLayers.A,
+                    overlayItem: newLayers.B,
+                    name: `${newLayers.B.name} ${newLayers.A.name}`,
+                    emoji: newLayers.A.emoji,
+                    color: newLayers.A.color,
+                    patternEmoji: newLayers.B.emoji,
+                    patternColor: newLayers.B.color,
+                    generation: 2
+                };
+
+                setCCollection([newCreature, ...cCollection]);
+
+                setResults([
+                    {
+                        id: Date.now(),
+                        ...newCreature,
+                        formula: `${slotC1.name} × ${slotC2.name}`,
+                        isMutation: layerKeys.length > 2,
+                        isLegendary: layerString === 'ABCDE'
+                    },
+                    ...results
+                ]);
+
+                setSlotC1(null);
+                setSlotC2(null);
+            };
+
+            return (
+                <div className={`app ${overlayMode ? 'overlay-mode' : ''}`}>
+                    <div className="drag-header">
+                        <h1>🧬 교배 시뮬레이터</h1>
+                        <div className="controls">
+                            <button 
+                                className={`toggle-btn ${!overlayMode ? 'active' : ''}`}
+                                onClick={() => setOverlayMode(false)}
+                            >
+                                💻 창 모드
+                            </button>
+                            <button 
+                                className={`toggle-btn ${overlayMode ? 'active' : ''}`}
+                                onClick={() => setOverlayMode(true)}
+                            >
+                                👁️ 오버레이
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="game-container">
+                        {/* 첫 번째 행 - 1차 교배 */}
+                        {/* A 목록 - 생물 종 */}
+                        <div className="list-panel">
+                            <h2>생물 종 (A)</h2>
+                            <div className="item-list">
+                                {initialAItems.map(item => (
+                                    <div
+                                        key={item.id}
+                                        className="item"
+                                        style={{background: `linear-gradient(135deg, ${item.color} 0%, ${item.color}dd 100%)`}}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item, 'A')}
+                                        onDragEnd={handleDragEnd}
+                                        onClick={() => handleItemClick(item, 'A')}
+                                    >
+                                        <span style={{fontSize: '24px', marginRight: '8px'}}>{item.emoji}</span>
+                                        {item.name}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 1차 교배 영역 */}
+                        <div className="list-panel">
+                            <h2>1차 교배</h2>
+                            <div 
+                                className={`combination-area ${dragOver ? 'drag-over' : ''}`}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => e.preventDefault()}
+                            >
+                                <div className="combination-slots">
+                                    <div 
+                                        className={`slot ${slotA ? 'filled' : ''} ${activeSlot === 'A' ? 'active' : ''}`}
+                                        style={slotA ? {background: `linear-gradient(135deg, ${slotA.color} 0%, ${slotA.color}dd 100%)`} : {}}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, 'A')}
+                                        onClick={() => handleSlotClick('A')}
+                                    >
+                                        {slotA ? (
+                                            <div>
+                                                <div style={{fontSize: '32px'}}>{slotA.emoji}</div>
+                                                <div style={{fontSize: '10px', marginTop: '4px'}}>{slotA.name}</div>
+                                            </div>
+                                        ) : (activeSlot === 'A' ? 'A 선택중...' : 'A 베이스')}
+                                    </div>
+                                    <div style={{fontSize: '24px', alignSelf: 'center'}}>×</div>
+                                    <div 
+                                        className={`slot ${slotB ? 'filled' : ''} ${activeSlot === 'B' ? 'active' : ''}`}
+                                        style={slotB ? {background: `linear-gradient(135deg, ${slotB.color} 0%, ${slotB.color}dd 100%)`} : {}}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, 'B')}
+                                        onClick={() => handleSlotClick('B')}
+                                    >
+                                        {slotB ? (
+                                            <div>
+                                                <div style={{fontSize: '32px'}}>{slotB.emoji}</div>
+                                                <div style={{fontSize: '10px', marginTop: '4px'}}>{slotB.name}</div>
+                                            </div>
+                                        ) : (activeSlot === 'B' ? 'B 선택중...' : 'B 무늬')}
+                                    </div>
+                                </div>
+                                <button 
+                                    className="combine-btn"
+                                    onClick={handleCombine}
+                                    disabled={!slotA || !slotB}
+                                >
+                                    🧬 교배하기
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* B 목록 - 무늬/속성 */}
+                        <div className="list-panel">
+                            <h2>무늬/속성 (B)</h2>
+                            <div className="item-list">
+                                {initialBItems.map(item => (
+                                    <div
+                                        key={item.id}
+                                        className="item"
+                                        style={{background: `linear-gradient(135deg, ${item.color} 0%, ${item.color}dd 100%)`}}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item, 'B')}
+                                        onDragEnd={handleDragEnd}
+                                        onClick={() => handleItemClick(item, 'B')}
+                                    >
+                                        <span style={{fontSize: '24px', marginRight: '8px'}}>{item.emoji}</span>
+                                        {item.name}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 두 번째 행 - 2차 교배 */}
+                        {/* C 목록 왼쪽 */}
+                        <div className="list-panel">
+                            <h2>교배 결과 (C)</h2>
+                            <div className="item-list">
+                                {[...cCollection].sort((a, b) => {
+                                    // 레이어 개수로 정렬 (많을수록 위)
+                                    const aLayers = a.layerString ? a.layerString.length : 2;
+                                    const bLayers = b.layerString ? b.layerString.length : 2;
+                                    return bLayers - aLayers;
+                                }).map(item => (
+                                    <div
+                                        key={item.id}
+                                        className="item"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${item.color} 0%, ${item.color}dd 100%)`,
+                                            position: 'relative'
+                                        }}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item, 'C')}
+                                        onDragEnd={handleDragEnd}
+                                        onClick={() => handleItemClick(item, 'C')}
+                                    >
+                                        {/* 레이어 합성 표시 */}
+                                        <div style={{position: 'relative', display: 'inline-block', width: '40px', height: '40px', marginRight: '8px'}}>
+                                            {/* 베이스 A */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                fontSize: '32px',
+                                                opacity: 0.7
+                                            }}>
+                                                {item.emoji}
+                                            </div>
+                                            {/* 무늬 B */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                fontSize: '20px',
+                                                top: '0',
+                                                left: '0',
+                                                filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.8))'
+                                            }}>
+                                                {item.patternEmoji}
+                                            </div>
+                                            {/* 추가 레이어 C/D/E */}
+                                            {item.layers && item.layers.C && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    fontSize: '14px',
+                                                    top: '-5px',
+                                                    right: '-5px',
+                                                    filter: 'drop-shadow(0 0 2px rgba(255,215,0,0.8))'
+                                                }}>
+                                                    {item.layers.C.emoji}
+                                                </div>
+                                            )}
+                                            {item.layers && item.layers.D && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    fontSize: '14px',
+                                                    bottom: '-5px',
+                                                    right: '-5px',
+                                                    filter: 'drop-shadow(0 0 2px rgba(255,0,255,0.8))'
+                                                }}>
+                                                    {item.layers.D.emoji}
+                                                </div>
+                                            )}
+                                            {item.layers && item.layers.E && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    fontSize: '14px',
+                                                    bottom: '-5px',
+                                                    left: '-5px',
+                                                    filter: 'drop-shadow(0 0 2px rgba(0,255,255,0.8))'
+                                                }}>
+                                                    {item.layers.E.emoji}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{display: 'inline-block', verticalAlign: 'middle'}}>
+                                            <div>
+                                                {item.name}
+                                                {item.layerString === 'ABCDE' && ' 💎'}
+                                                {item.layerString && item.layerString.length > 2 && item.layerString !== 'ABCDE' && ' ✨'}
+                                            </div>
+                                            {/* 부모 유전자 표시 */}
+                                            <div style={{fontSize: '9px', opacity: 0.7, marginTop: '2px'}}>
+                                                레이어: {item.layerString || 'AB'}
+                                                {item.generation === 2 && ' (2세대)'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 2차 교배 영역 */}
+                        <div className="list-panel">
+                            <h2>2차 교배</h2>
+                            <div 
+                                className={`combination-area ${dragOver2 ? 'drag-over' : ''}`}
+                                onDragOver={(e) => { e.preventDefault(); setDragOver2(true); }}
+                                onDragLeave={() => setDragOver2(false)}
+                                onDrop={(e) => e.preventDefault()}
+                            >
+                                <div className="combination-slots">
+                                    <div 
+                                        className={`slot ${slotC1 ? 'filled' : ''} ${activeSlot === 'C1' ? 'active' : ''}`}
+                                        style={slotC1 ? {background: `linear-gradient(135deg, ${slotC1.color} 0%, ${slotC1.color}dd 100%)`} : {}}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOver2(true); }}
+                                        onDrop={(e) => handleDrop(e, 'C1')}
+                                        onClick={() => handleSlotClick('C1')}
+                                    >
+                                        {slotC1 ? (
+                                            <div>
+                                                <div style={{position: 'relative', width: '40px', height: '40px', margin: '0 auto'}}>
+                                                    <div style={{position: 'absolute', fontSize: '32px', opacity: 0.7}}>{slotC1.emoji}</div>
+                                                    <div style={{position: 'absolute', fontSize: '20px', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.8))'}}>{slotC1.patternEmoji}</div>
+                                                </div>
+                                                <div style={{fontSize: '9px', marginTop: '4px'}}>{slotC1.name}</div>
+                                            </div>
+                                        ) : (activeSlot === 'C1' ? 'C 선택중...' : 'C 부모1')}
+                                    </div>
+                                    <div style={{fontSize: '24px', alignSelf: 'center'}}>×</div>
+                                    <div 
+                                        className={`slot ${slotC2 ? 'filled' : ''} ${activeSlot === 'C2' ? 'active' : ''}`}
+                                        style={slotC2 ? {background: `linear-gradient(135deg, ${slotC2.color} 0%, ${slotC2.color}dd 100%)`} : {}}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOver2(true); }}
+                                        onDrop={(e) => handleDrop(e, 'C2')}
+                                        onClick={() => handleSlotClick('C2')}
+                                    >
+                                        {slotC2 ? (
+                                            <div>
+                                                <div style={{position: 'relative', width: '40px', height: '40px', margin: '0 auto'}}>
+                                                    <div style={{position: 'absolute', fontSize: '32px', opacity: 0.7}}>{slotC2.emoji}</div>
+                                                    <div style={{position: 'absolute', fontSize: '20px', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.8))'}}>{slotC2.patternEmoji}</div>
+                                                </div>
+                                                <div style={{fontSize: '9px', marginTop: '4px'}}>{slotC2.name}</div>
+                                            </div>
+                                        ) : (activeSlot === 'C2' ? 'C 선택중...' : 'C 부모2')}
+                                    </div>
+                                </div>
+                                <button 
+                                    className="combine-btn"
+                                    onClick={handleSecondaryBreed}
+                                    disabled={!slotC1 || !slotC2}
+                                >
+                                    🧬 2차 교배
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* C 목록 오른쪽 (동일) */}
+                        <div className="list-panel">
+                            <h2>교배 결과 (C)</h2>
+                            <div className="item-list">
+                                {[...cCollection].sort((a, b) => {
+                                    // 레이어 개수로 정렬 (많을수록 위)
+                                    const aLayers = a.layerString ? a.layerString.length : 2;
+                                    const bLayers = b.layerString ? b.layerString.length : 2;
+                                    return bLayers - aLayers;
+                                }).map(item => (
+                                    <div
+                                        key={item.id}
+                                        className="item"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${item.color} 0%, ${item.color}dd 100%)`,
+                                            position: 'relative'
+                                        }}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item, 'C')}
+                                        onDragEnd={handleDragEnd}
+                                        onClick={() => handleItemClick(item, 'C')}
+                                    >
+                                        <div style={{position: 'relative', display: 'inline-block', width: '40px', height: '40px', marginRight: '8px'}}>
+                                            <div style={{position: 'absolute', fontSize: '32px', opacity: 0.7}}>{item.emoji}</div>
+                                            <div style={{position: 'absolute', fontSize: '20px', top: '0', left: '0', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.8))'}}>{item.patternEmoji}</div>
+                                            {item.layers && item.layers.C && (
+                                                <div style={{position: 'absolute', fontSize: '14px', top: '-5px', right: '-5px', filter: 'drop-shadow(0 0 2px rgba(255,215,0,0.8))'}}>{item.layers.C.emoji}</div>
+                                            )}
+                                            {item.layers && item.layers.D && (
+                                                <div style={{position: 'absolute', fontSize: '14px', bottom: '-5px', right: '-5px', filter: 'drop-shadow(0 0 2px rgba(255,0,255,0.8))'}}>{item.layers.D.emoji}</div>
+                                            )}
+                                            {item.layers && item.layers.E && (
+                                                <div style={{position: 'absolute', fontSize: '14px', bottom: '-5px', left: '-5px', filter: 'drop-shadow(0 0 2px rgba(0,255,255,0.8))'}}>{item.layers.E.emoji}</div>
+                                            )}
+                                        </div>
+                                        <div style={{display: 'inline-block', verticalAlign: 'middle'}}>
+                                            <div>
+                                                {item.name}
+                                                {item.layerString === 'ABCDE' && ' 💎'}
+                                                {item.layerString && item.layerString.length > 2 && item.layerString !== 'ABCDE' && ' ✨'}
+                                            </div>
+                                            <div style={{fontSize: '9px', opacity: 0.7, marginTop: '2px'}}>
+                                                레이어: {item.layerString || 'AB'}
+                                                {item.generation === 2 && ' (2세대)'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 결과 패널 (하단에 고정) */}
+                    {results.length > 0 && (
+                        <div className="list-panel" style={{margin: '0 20px 20px', maxHeight: '150px'}}>
+                            <h2>🧬 최근 교배 결과</h2>
+                            <div className="results-list">
+                                {results.map(result => (
+                                    <div key={result.id} className="result-item" style={{
+                                        background: result.isLegendary 
+                                            ? 'linear-gradient(135deg, #ffd700 0%, #ff6b6b 100%)' 
+                                            : result.isMutation 
+                                            ? 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'
+                                            : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+                                    }}>
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                                            {/* 레이어 합성 시각화 */}
+                                            <div style={{position: 'relative', width: '50px', height: '50px'}}>
+                                                {/* 베이스 레이어 (A) */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    width: '50px',
+                                                    height: '50px',
+                                                    borderRadius: '8px',
+                                                    background: result.color,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '32px',
+                                                    opacity: 0.7
+                                                }}>
+                                                    {result.emoji}
+                                                </div>
+                                                {/* 무늬 (B) */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    width: '50px',
+                                                    height: '50px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '20px',
+                                                    top: '0',
+                                                    left: '0',
+                                                    filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))'
+                                                }}>
+                                                    {result.patternEmoji}
+                                                </div>
+                                                {/* 추가 레이어 표시 */}
+                                                {result.layers && result.layers.C && (
+                                                    <div style={{position: 'absolute', fontSize: '12px', top: '-5px', right: '-5px', filter: 'drop-shadow(0 0 2px rgba(255,215,0,1))'}}>
+                                                        {result.layers.C.emoji}
+                                                    </div>
+                                                )}
+                                                {result.layers && result.layers.D && (
+                                                    <div style={{position: 'absolute', fontSize: '12px', bottom: '-5px', right: '-5px', filter: 'drop-shadow(0 0 2px rgba(255,0,255,1))'}}>
+                                                        {result.layers.D.emoji}
+                                                    </div>
+                                                )}
+                                                {result.layers && result.layers.E && (
+                                                    <div style={{position: 'absolute', fontSize: '12px', bottom: '-5px', left: '-5px', filter: 'drop-shadow(0 0 2px rgba(0,255,255,1))'}}>
+                                                        {result.layers.E.emoji}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{flex: 1}}>
+                                                <div style={{fontWeight: 'bold', fontSize: '14px'}}>
+                                                    {result.name}
+                                                    {result.isLegendary && ' 💎 전설!'}
+                                                    {result.isMutation && !result.isLegendary && ' ✨ 돌연변이!'}
+                                                    {result.generation === 2 && ' ⭐'}
+                                                </div>
+                                                <div className="result-formula">{result.formula}</div>
+                                                <div style={{fontSize: '9px', opacity: 0.8}}>
+                                                    레이어: {result.layerString || 'AB'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
